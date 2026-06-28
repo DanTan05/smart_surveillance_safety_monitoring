@@ -1,0 +1,49 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── Pre-trained model weights (auto-downloaded by ultralytics — do not commit) ─
+# These download automatically on first run; committing them just bloats the repo.
+yolov8n.pt
+yolov8s.pt
+yolov8m.pt
+yolov8l.pt
+yolov8x.pt
+
+# NOTE: models/custom_model.pt is intentionally NOT ignored — it is our actual
+# fine-tuning deliverable (output of finetune_colab.ipynb) and should be
+# committed so the grader can run the app immediately after cloning, without
+# needing their own Roboflow account or GPU to reproduce training.
+
+# ── Streamlit ─────────────────────────────────────────────────────────────────
+.streamlit/
+
+# ── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Temp / runtime ────────────────────────────────────────────────────────────
+tmp/
+*.tmp
+runs/                     # YOLOv8 training output folder (large)
+datasets/                 # Downloaded training datasets (large)

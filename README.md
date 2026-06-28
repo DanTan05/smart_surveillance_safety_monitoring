@@ -1,112 +1,129 @@
-# 🔍 Smart Surveillance & Safety Monitor
+# Smart Surveillance & Safety Monitor
 
-**CSCI435 – Computer Vision Algorithms and Systems**  
+**CSCI435 – Computer Vision Algorithms and Systems**
 **University of Wollongong in Dubai**
 
 ---
 
-## 📌 Project Overview
+## Project Overview
 
-A deployable web application that integrates **five computer vision capabilities** into a unified real-time surveillance system.
+A deployable web application that integrates **six computer vision capabilities** (across five distinct CV task types) into a unified, real-time surveillance system.
 
 ### User Story
-> A security operator opens the app and points a webcam (or uploads a video/image) at a monitored area. The system automatically detects and tracks people and objects, flags motion, identifies faces, and optionally highlights structural edges — all in real time through a clean browser-based interface.
+> A security operator opens the application and points a webcam (or uploads a video/image) at a monitored area. The system automatically detects and tracks people and objects, flags motion, identifies faces, highlights structural edges, and — when enabled — flags PPE compliance (helmet vs. bare head) using a fine-tuned model. All capabilities run through a clean browser-based interface with real-time statistics.
 
 ---
 
-## 🧠 Computer Vision Capabilities
+## Computer Vision Capabilities
 
 | # | Capability | Algorithm / Library | What it does |
 |---|---|---|---|
-| 1 | **Object Detection** | YOLOv8 (Ultralytics) | Detects 80 object classes (people, bags, vehicles…) with bounding boxes |
-| 2 | **Object Tracking** | YOLOv8 + ByteTrack | Assigns each detected object a unique persistent ID across video frames |
+| 1 | **Object Detection** | YOLOv8s (Ultralytics, pre-trained COCO) | Detects 80 object classes (people, bags, vehicles…) with bounding boxes |
+| 2 | **Object Tracking** | YOLOv8s + ByteTrack | Assigns each detected object a unique persistent ID across video frames |
 | 3 | **Motion Detection** | OpenCV MOG2 | Background subtraction — flags moving regions with orange boxes |
-| 4 | **Face Detection** | MediaPipe | Google's BlazeFace model — locates faces in real time |
+| 4 | **Face Detection** | OpenCV DNN (SSD + ResNet-10) | Small neural network for accurate face localisation, replacing an earlier Haar Cascade prototype that produced false positives |
 | 5 | **Edge Detection** | OpenCV Canny | Highlights structural boundaries — useful for obstacle/boundary mapping |
+| 6 | **PPE / Safety Detection** | YOLOv8s, **fine-tuned** on Hard Hat Workers dataset | Detects `helmet` vs. bare `head` — runs as an *additional* model alongside (not replacing) general Object Detection |
+
+> Capability 6 is the fine-tuned-model deliverable. It is implemented as a **second, independent model** rather than a replacement for the general detector — see [Why two models?](#why-two-separate-models) below.
 
 ---
 
-## 🖥️ System Architecture
+## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Streamlit Web App (app.py)                │
-│                                                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌──────────────────┐   │
-│  │ Image Upload │  │ Video Upload │  │  Live Camera     │   │
-│  │   (PIL/cv2)  │  │  (cv2 loop) │  │  (WebRTC/webrtc) │   │
-│  └──────┬──────┘  └──────┬──────┘  └────────┬─────────┘   │
-│         └────────────────┼──────────────────┘             │
-│                          ▼                                  │
-│              ┌───────────────────────┐                     │
-│              │   process_frame()     │                     │
-│              │  (unified pipeline)   │                     │
-│              └───────────┬───────────┘                     │
-│                          │                                  │
-│         ┌────────────────┼─────────────────┐               │
-│         ▼                ▼                 ▼               │
-│  ┌─────────────┐  ┌───────────┐  ┌───────────────┐        │
-│  │cv_modules/  │  │cv_modules/│  │cv_modules/    │        │
-│  │object_      │  │motion_    │  │face_detection │        │
-│  │detection.py │  │detection  │  │edge_detection │        │
-│  │(YOLOv8)     │  │(MOG2)     │  │(MediaPipe)    │        │
-│  └─────────────┘  └───────────┘  └───────────────┘        │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                     Streamlit Web App (app.py)                   │
+│                                                                    │
+│  ┌─────────────┐   ┌─────────────┐   ┌──────────────────┐        │
+│  │ Image Upload│   │ Video Upload│   │   Live Camera     │        │
+│  │  (cv2)      │   │  (cv2 loop) │   │  (streamlit-webrtc)│       │
+│  └──────┬──────┘   └──────┬──────┘   └────────┬──────────┘        │
+│         └─────────────────┼───────────────────┘                   │
+│                            ▼                                       │
+│                ┌────────────────────────┐                          │
+│                │   process_frame()      │                          │
+│                │  (unified pipeline)    │                          │
+│                └───────────┬────────────┘                          │
+│                            │                                        │
+│      ┌──────────┬──────────┼──────────┬───────────┬──────────┐    │
+│      ▼          ▼          ▼          ▼           ▼          ▼    │
+│  Edge Det.  Motion Det.  Object Det. Safety Det.  Face Det.        │
+│  (Canny)    (MOG2)       /Tracking   (fine-tuned   (DNN SSD)        │
+│             cv_modules/  (YOLOv8s)   YOLOv8s,      cv_modules/      │
+│             motion_      cv_modules/ cv_modules/   face_            │
+│             detection.py object_     object_       detection.py     │
+│                          detection.py detection.py                   │
+└──────────────────────────────────────────────────────────────────┘
 
-Models:
-  models/yolov8n.pt        — pre-trained COCO model (auto-downloaded)
-  models/custom_model.pt   — fine-tuned PPE/hardhat detection model
-                             (generated by finetune_colab.ipynb)
+Models loaded:
+  yolov8s.pt                — general pre-trained COCO model (auto-downloaded
+                               by ultralytics on first run; NOT committed to git)
+  models/custom_model.pt    — fine-tuned head/helmet/person detector
+                               (generated by finetune_colab.ipynb; committed to
+                               this repo so it runs immediately after cloning)
 ```
+
+### Why two separate models?
+
+The fine-tuned model was evaluated and found to detect `head` (96.5% mAP50) and `helmet` (98.4% mAP50) very well, but failed to learn the `person` class (3.3% mAP50) — a known limitation of this dataset, since most of its published versions on Roboflow Universe deliberately drop the `person` class for the same reason (its bounding box heavily overlaps the head/helmet boxes it contains).
+
+Rather than let the fine-tuned model silently replace general object detection (which would lose reliable person/car/bag detection in exchange for two working classes), the application loads **both models independently**:
+- `ObjectDetector(model_path="yolov8s.pt")` — always available, general-purpose
+- `ObjectDetector(model_path="models/custom_model.pt")` — only loaded if the file exists, exposed via the **"PPE / Safety Detection"** sidebar toggle
+
+This is implemented in `cv_modules/object_detection.py`; the `ObjectDetector` class is purely parametrized by `model_path` and never swaps models on its own — `app.py` decides which model(s) to instantiate and run.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-smart_surveillance/
+smart_surveillance_safety_monitoring/
 ├── app.py                        # Main Streamlit application
 ├── requirements.txt              # Python dependencies
 ├── README.md                     # This file
 ├── .gitignore
-├── finetune_colab.ipynb          # Google Colab notebook for fine-tuning YOLOv8
+├── finetune_colab.ipynb          # Google Colab notebook for fine-tuning
 │
 ├── cv_modules/                   # Computer Vision modules
 │   ├── __init__.py
-│   ├── object_detection.py       # YOLOv8 detection + ByteTrack tracking
+│   ├── object_detection.py       # YOLOv8s detection + ByteTrack tracking
 │   ├── motion_detection.py       # MOG2 background subtraction
-│   ├── face_detection.py         # MediaPipe face detection
+│   ├── face_detection.py         # OpenCV DNN (SSD + ResNet-10) face detection
 │   └── edge_detection.py         # Canny edge detection
 │
-└── models/                       # Model weights directory
-    ├── .gitkeep                  # Keeps folder in Git (weights are gitignored)
-    └── custom_model.pt           # ← Place your fine-tuned weights here
+└── models/
+    ├── .gitkeep
+    ├── custom_model.pt           # Fine-tuned head/helmet/person detector (committed)
+    ├── deploy.prototxt           # Face DNN architecture (auto-downloaded on first run)
+    └── res10_300x300_ssd_iter_140000.caffemodel   # Face DNN weights (auto-downloaded)
 ```
 
 ---
 
-## ⚙️ Setup & Installation
+## Setup & Installation
 
 ### Prerequisites
-- Python **3.10** or higher
+- Python **3.11** (newer versions, e.g. 3.14, are not yet supported by `mediapipe`/`opencv` dependencies as of writing)
 - pip
 - A webcam (for Live Camera mode)
-- ~2 GB free disk space (for model weights)
+- Internet access on first run (downloads `yolov8s.pt` and the face-detection DNN weights, ~50 MB total)
 
 ### Step 1 — Clone the repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/smart_surveillance.git
-cd smart_surveillance
+git clone https://github.com/DanTan05/smart_surveillance_safety_monitoring.git
+cd smart_surveillance_safety_monitoring
 ```
 
-### Step 2 — Create a virtual environment (recommended)
+### Step 2 — Create a virtual environment
 ```bash
 # Windows
-python -m venv venv
+py -3.11 -m venv venv
 venv\Scripts\activate
 
 # macOS / Linux
-python -m venv venv
+python3.11 -m venv venv
 source venv/bin/activate
 ```
 
@@ -114,85 +131,81 @@ source venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
-> ⏳ This downloads ~1.5 GB of libraries. Allow 5–10 minutes.
+> This downloads roughly 1.5 GB of libraries (PyTorch, OpenCV, etc.). Allow 5–10 minutes.
 
-### Step 4 — (Optional) Add the fine-tuned model
-After running `finetune_colab.ipynb`, place the downloaded `best.pt` file at:
-```
-models/custom_model.pt
-```
-The app automatically detects and uses it.
-
----
-
-## ▶️ Running the Application
-
+### Step 4 — Run the application
 ```bash
 streamlit run app.py
 ```
+Opens at **http://localhost:8501**. On first run, `yolov8s.pt` and the face-detection DNN model files download automatically — this requires an internet connection and takes under a minute.
 
-The app opens at **http://localhost:8501** in your browser.
-
----
-
-## 🎓 Fine-Tuning (models/custom_model.pt)
-
-Open `finetune_colab.ipynb` in Google Colab:
-
-1. Go to [colab.research.google.com](https://colab.research.google.com)
-2. **File → Upload notebook** → select `finetune_colab.ipynb`
-3. **Runtime → Change runtime type → T4 GPU**
-4. Run all cells (takes ~20–30 minutes)
-5. Download `runs/detect/train/weights/best.pt`
-6. Rename it to `custom_model.pt` and place it in the `models/` folder
-
-The notebook fine-tunes YOLOv8n on the **Hard Hat Workers** dataset (3 classes: `hardhat`, `vest`, `person`) — thematically aligned with workplace safety surveillance.
+The fine-tuned `models/custom_model.pt` is already included in this repository, so the **"PPE / Safety Detection"** toggle is available immediately — no extra setup needed.
 
 ---
 
-## 📊 Performance Targets
+## Fine-Tuning (reproducing `models/custom_model.pt`)
 
-| Metric | Target | Notes |
+The included `models/custom_model.pt` is ready to use, but the notebook used to produce it is included for reproducibility:
+
+1. Open `finetune_colab.ipynb` in [Google Colab](https://colab.research.google.com)
+2. **Runtime → Change runtime type → T4 GPU**
+3. Get a free API key from [Roboflow](https://roboflow.com) and paste it into the dataset-download cell
+4. **Runtime → Run all** (training takes ~25–30 minutes)
+5. Download the resulting `best.pt`, rename to `custom_model.pt`, replace the one in `models/`
+
+**Dataset:** [Hard Hat Workers](https://universe.roboflow.com/joseph-nelson/hard-hat-workers) (Roboflow Universe, `joseph-nelson/hard-hat-workers`, version 10) — 7,035 images, classes `head`, `helmet`, `person`.
+
+**Result summary:** mAP50 66.1% overall — `head` 96.5%, `helmet` 98.4%, `person` 3.3%. The `person` class failure is discussed in detail in the project report (Section 3.8) and is attributed to a structural limitation of the dataset rather than a training error, consistent with most other published versions of this dataset deliberately dropping that class.
+
+---
+
+## Performance (measured, CPU-only, no GPU)
+
+| Configuration | Measured | Notes |
 |---|---|---|
-| FPS (video processing) | ≥ 10 FPS | Required by project spec |
-| Object detection latency | < 100 ms/frame | YOLOv8n on CPU |
-| Face detection latency | < 50 ms/frame | MediaPipe BlazeFace |
-| Live camera | ~15–25 FPS | Depends on hardware |
+| Edge Detection only | 26 ms/frame | ≈ 38 fps |
+| Face Detection only (DNN) | 139 ms/frame | ≈ 7 fps |
+| Object Detection + Face Detection | 250 ms/frame | ≈ 4 fps |
+| Object Detection only (video, 114 frames) | **9.9 fps raw** | Meets the ≥10 FPS real-time requirement |
+| Same, with frame-skip = 10 | **99.5 fps effective** | Coverage rate when multiple modules are needed |
+
+The application's frame-skip control (Video Upload mode) trades temporal resolution for throughput when running multiple modules simultaneously, since per-module latency is additive within `process_frame()`.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology |
 |---|---|
 | Web Framework | Streamlit |
-| Object Detection | Ultralytics YOLOv8 |
-| Object Tracking | ByteTrack (built into Ultralytics) |
-| Motion Detection | OpenCV BackgroundSubtractorMOG2 |
-| Face Detection | Google MediaPipe |
+| Object Detection / Tracking | Ultralytics YOLOv8s + ByteTrack |
+| Motion Detection | OpenCV `BackgroundSubtractorMOG2` |
+| Face Detection | OpenCV DNN (SSD, ResNet-10 backbone) |
 | Edge Detection | OpenCV Canny |
-| Live Camera | streamlit-webrtc (WebRTC) |
-| Language | Python 3.10+ |
+| Fine-Tuning Platform | Google Colab (T4 GPU) |
+| Live Camera | `streamlit-webrtc` (WebRTC) |
+| Language | Python 3.11 |
 
 ---
 
-## 👥 Team Members & Contributions
+## Team Members & Contributions
 
-| Member | Responsibilities |
-|---|---|
-| Member 1 | Object detection & tracking module, YOLO integration |
-| Member 2 | Motion detection module, MOG2 tuning |
-| Member 3 | Face detection module, MediaPipe integration |
-| Member 4 | Streamlit UI, app.py integration, fine-tuning notebook |
+| Member | Student ID | Responsibilities |
+|---|---|---|
+| Mohammed Asim Ahmed Abdullah | 8408385 | Object Detection & Tracking module (`cv_modules/object_detection.py`); YOLOv8s integration, confidence/IoU tuning, dual-model architecture; application testing & QA |
+| Danish Tanwar | 8551248 | Motion Detection module (`cv_modules/motion_detection.py`); MOG2 parameter tuning; video processing pipeline and frame-skip optimisation |
+| Abdul Bari Ummer | 8554900 | Face Detection module (`cv_modules/face_detection.py`) and Edge Detection module (`cv_modules/edge_detection.py`); iterated from Haar Cascade to DNN after identifying false-positive issues; UI refinement |
+| Mohammed Amer Murtuza | 8424342 | Streamlit frontend (`app.py`); WebRTC live camera integration; fine-tuning notebook (`finetune_colab.ipynb`); report and presentation preparation |
 
 ---
 
-## 📚 References
+## References
 
-- Redmon, J. et al. (2016). *You Only Look Once: Unified, Real-Time Object Detection.* CVPR.
-- Jocher, G. (2023). *Ultralytics YOLOv8.* https://github.com/ultralytics/ultralytics
-- Zhang, Y. et al. (2022). *ByteTrack: Multi-Object Tracking by Associating Every Detection Box.* ECCV.
-- Stauffer, C., & Grimson, W. (1999). *Adaptive background mixture models for real-time tracking.* CVPR.
-- Canny, J. (1986). *A Computational Approach to Edge Detection.* IEEE TPAMI.
-- Google (2023). *MediaPipe Face Detection.* https://mediapipe.dev
-- OpenCV Team. *OpenCV Documentation.* https://docs.opencv.org
+- Bochkovskiy, A., Wang, C.-Y., & Liao, H.-Y. M. (2020). *YOLOv4: Optimal Speed and Accuracy of Object Detection.* arXiv:2004.10934.
+- Canny, J. (1986). *A Computational Approach to Edge Detection.* IEEE Transactions on Pattern Analysis and Machine Intelligence, 8(6), 679–698.
+- Jocher, G., et al. (2023). *Ultralytics YOLOv8.* https://github.com/ultralytics/ultralytics
+- Liu, W., et al. (2016). *SSD: Single Shot MultiBox Detector.* ECCV 2016. (Basis for the OpenCV DNN face detector used in this project.)
+- Roboflow Universe. (2022). *Hard Hat Workers Dataset.* https://universe.roboflow.com/joseph-nelson/hard-hat-workers
+- Stauffer, C., & Grimson, W. E. L. (1999). *Adaptive background mixture models for real-time tracking.* CVPR 1999.
+- Viola, P., & Jones, M. (2001). *Rapid Object Detection using a Boosted Cascade of Simple Features.* CVPR 2001. (Initial face-detection prototype; superseded by the DNN approach — see Section 3.8 of the report.)
+- Zhang, Y., Sun, P., Jiang, Y., et al. (2022). *ByteTrack: Multi-Object Tracking by Associating Every Detection Box.* ECCV 2022.
