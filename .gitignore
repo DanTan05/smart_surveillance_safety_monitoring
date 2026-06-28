@@ -1,0 +1,43 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── Model weights (too large for Git — share via Google Drive or Colab) ───────
+models/*.pt
+models/*.pth
+models/*.weights
+!models/.gitkeep          # keep the empty models/ directory in Git
+/yolov8*.pt               # Root-level YOLO weights (auto-downloaded on first run)
+
+# ── Streamlit ─────────────────────────────────────────────────────────────────
+.streamlit/
+
+# ── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Temp / runtime ────────────────────────────────────────────────────────────
+tmp/
+*.tmp
+runs/                     # YOLOv8 training output folder (large)
+datasets/                 # Downloaded training datasets (large)

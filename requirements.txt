@@ -1,0 +1,20 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CSCI435 Smart Surveillance Monitor — Python Dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+# Install everything with:
+#   pip install -r requirements.txt
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Core Computer Vision ──────────────────────────────────────────────────────
+ultralytics>=8.1.0          # YOLOv8: object detection + ByteTrack tracking
+opencv-python>=4.8.0        # Image processing, MOG2, Canny, morphology
+mediapipe>=0.10.9           # Google MediaPipe: face detection pipeline
+
+# ── Streamlit & Live Video ─────────────────────────────────────────────────────
+streamlit>=1.32.0           # Web app framework
+streamlit-webrtc>=0.47.1    # WebRTC live camera support for Streamlit
+av>=11.0.0                  # PyAV: video frame encoding/decoding (used by webrtc)
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+Pillow>=10.0.0              # Image loading/saving utilities
+numpy>=1.24.0               # Numerical arrays (core dependency)
